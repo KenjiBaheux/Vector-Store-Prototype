@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vector Store API Polyfill | Chrome Canary Semantic Embedder Showcase</title>
+  <meta name="description"
+    content="An end-to-end interactive polyfill and showcase for the proposed Vector Store API, built on top of Chrome Canary's experimental on-device Semantic Embedder API (EmbeddingGemma-300m)." />
+  <!-- Google Fonts for Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <!-- Header with Live API Hardware Status -->
+  <header class="app-header">
+    <div class="brand-container">
+      <div class="brand-icon">VS</div>
+      <div>
+        <h1 class="brand-title">Vector Store API Polyfill</h1>
+        <div class="brand-subtitle">Built on Chrome Canary Semantic Embedder API</div>
+      </div>
+    </div>
+    <div class="status-container">
+      <div id="embedder-status-pill" class="status-pill">
+        <span id="embedder-status-dot" class="status-dot"></span>
+        <span id="embedder-status-text">Checking AI Engine...</span>
+      </div>
+      <button id="btn-reset-db" class="btn btn-secondary btn-sm" title="Clear all IndexedDB vector databases">
+        Reset All Databases
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs" aria-label="Workbench tabs">
+    <button id="tab-btn-explorer" class="tab-btn active" data-tab="tab-explorer">
+      <span>🗄️ Store Explorer & Search</span>
+    </button>
+    <button id="tab-btn-rag" class="tab-btn" data-tab="tab-rag">
+      <span>🤖 RAG Assistant (Q&A)</span>
+    </button>
+    <button id="tab-btn-mod" class="tab-btn" data-tab="tab-mod">
+      <span>🛡️ Live Moderation AI</span>
+    </button>
+    <button id="tab-btn-docs" class="tab-btn" data-tab="tab-docs">
+      <span>📚 API Spec & Architecture</span>
+    </button>
+  </nav>
+
+  <!-- Main Content Layout -->
+  <main class="main-container">
+    <!-- Native API Setup Instruction Banner (Shown when Semantic Embedder API is disabled) -->
+    <div id="setup-banner-container" class="card setup-banner"
+      style="display: none; margin-bottom: 1.5rem; border-color: var(--accent-amber); background: hsla(38, 95%, 55%, 0.08);">
+      <div class="card-header"
+        style="border-bottom: 1px solid hsla(38, 95%, 55%, 0.2); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+        <div>
+          <h2 class="card-title" style="color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
+            <span>⚠️</span> Initial Setup and Configuration Required
+          </h2>
+          <p class="card-subtitle">The native Semantic Embedder API is not enabled on this browser.</p>
+        </div>
+        <span class="badge badge-amber">ACTION REQUIRED</span>
+      </div>
+      <div style="color: var(--text-secondary); line-height: 1.6; font-size: 0.95rem;">
+        <p style="margin-bottom: 0.75rem;">
+          <strong>Semantic Embedder API</strong> enables the generation of text embeddings on-device. This allows for
+          privacy-preserving semantic understanding, low-latency applications, and avoids server-side costs. The API is
+          currently supported only on desktops (<strong>Linux, Mac and Windows</strong>).
+        </p>
+        <p style="margin-bottom: 0.75rem;">
+          To begin testing, ensure you are using the latest version of Chrome Canary ie, it should be greater than
+          <strong>153.0.7979.0</strong>. You must manually enable the following experimental flag to access the Semantic
+          Embedder API:
+        </p>
+        <div
+          style="background: var(--bg-secondary); padding: 0.75rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem; font-family: var(--font-mono); font-size: 0.9rem; color: var(--accent-blue); display: flex; align-items: center; justify-content: space-between;">
+          <span>chrome://flags/#semantic-embedder-api</span>
+          <span style="color: var(--accent-amber); font-weight: 600;">→ Enabled</span>
+        </div>
+        <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+          After enabling the flag and relaunching Chrome Canary, reload this page to test the on-device Vector Store
+          API.
+        </p>
+      </div>
+    </div>
+
+    <!-- TAB 1: STORE EXPLORER & SEMANTIC SEARCH PLAYGROUND -->
+    <section id="tab-explorer" class="tab-panel active" aria-labelledby="tab-btn-explorer">
+      <div class="workbench-grid">
+        <!-- Left Panel: Store Management -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Database Stores</h2>
+              <p class="card-subtitle">Persistent Vector Databases in IndexedDB</p>
+            </div>
+            <span id="badge-store-count" class="badge badge-blue">0 STORES</span>
+          </div>
+
+          <div id="store-list-container" class="store-list">
+            <!-- Dynamically populated store items -->
+          </div>
+
+          <hr style="border: none; border-top: 1px solid var(--border-color); margin: 1.25rem 0;" />
+
+          <h3 class="card-title" style="font-size: 0.95rem; margin-bottom: 0.75rem;">Create Vector Store</h3>
+          <form id="form-create-store" onsubmit="return false;">
+            <div class="form-group">
+              <label class="form-label" for="input-store-id">Store ID</label>
+              <input type="text" id="input-store-id" class="form-input" placeholder="e.g. my-app-notes"
+                value="my-app-notes" required />
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="form-group">
+                <label class="form-label" for="input-max-tokens">Max Tokens</label>
+                <input type="number" id="input-max-tokens" class="form-input" value="400" min="20" max="2000" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="input-overlap-tokens">Overlap Tokens</label>
+                <input type="number" id="input-overlap-tokens" class="form-input" value="50" min="0" max="400" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="select-distance-type">Distance Metric</label>
+              <select id="select-distance-type" class="form-select">
+                <option value="Cosine" selected>Cosine Similarity</option>
+                <option value="DotProduct">Dot Product</option>
+                <option value="Euclidean">Euclidean Similarity</option>
+              </select>
+            </div>
+            <button id="btn-create-store" type="submit" class="btn btn-primary" style="width: 100%;">
+              + Create / Retrieve Store
+            </button>
+          </form>
+        </article>
+
+        <!-- Middle Panel: Document Ingestion & Content Manager -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 id="current-store-title" class="card-title">Active Store: None</h2>
+              <p id="current-store-subtitle" class="card-subtitle">Select or create a vector store on the left</p>
+            </div>
+            <span id="badge-content-count" class="badge badge-green">0 ITEMS</span>
+          </div>
+
+          <!-- Insert Box -->
+          <div style="margin-bottom: 1.25rem;">
+            <label class="form-label" for="textarea-insert-content">Insert Raw Text Notes (Auto-Chunked &
+              Embedded)</label>
+            <textarea id="textarea-insert-content" class="form-textarea"
+              placeholder="The quick brown fox jumps over the lazy dog... Built-in AI APIs use on-device models."></textarea>
+            <div
+              style="display: flex; gap: 0.75rem; margin-top: 0.75rem; justify-content: space-between; align-items: center;">
+              <div id="chunk-preview-info" style="font-size: 0.78rem; color: var(--text-muted);">
+                Estimated chunks: 0 | Token budget: 400
+              </div>
+              <button id="btn-insert-note" class="btn btn-primary">
+                Ingest & Index Note
+              </button>
+            </div>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid var(--border-color); margin: 1.25rem 0;" />
+
+          <!-- Contents List inside active store -->
+          <div>
+            <h3 class="card-title" style="font-size: 0.95rem; margin-bottom: 0.75rem;">Indexed Contents</h3>
+            <div id="content-items-container"
+              style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 380px; overflow-y: auto;">
+              <!-- Dynamically populated contents -->
+            </div>
+          </div>
+        </article>
+
+        <!-- Right Panel: Semantic Search Inspector -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Semantic Search</h2>
+              <p class="card-subtitle">Query with taskType: 'retrieval-query'</p>
+            </div>
+            <span id="badge-search-results" class="badge badge-purple">0 RESULTS</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-search-query">Search Query</label>
+            <input type="text" id="input-search-query" class="form-input" placeholder="e.g. fox, the animal"
+              value="fox, the animal" />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+            <div class="form-group">
+              <label class="form-label" for="input-max-results">Max Results: <span
+                  id="label-max-results">3</span></label>
+              <input type="range" id="input-max-results" min="1" max="10" value="3" style="width: 100%;" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="input-score-threshold">Min Score: <span
+                  id="label-score-threshold">0.40</span></label>
+              <input type="range" id="input-score-threshold" min="0" max="100" value="40" style="width: 100%;" />
+            </div>
+          </div>
+
+          <button id="btn-run-search" class="btn btn-primary" style="width: 100%; margin-bottom: 1.25rem;">
+            🔍 Execute Semantic Search
+          </button>
+
+          <h3 class="card-title" style="font-size: 0.95rem; margin-bottom: 0.75rem;">Retrieved Results</h3>
+          <div id="search-results-container"
+            style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 420px; overflow-y: auto;">
+            <!-- Dynamically populated search results -->
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- TAB 2: RETRIEVAL-AUGMENTED GENERATION (RAG) ASSISTANT -->
+    <section id="tab-rag" class="tab-panel" aria-labelledby="tab-btn-rag">
+      <div class="rag-layout">
+        <!-- Left: Interactive Chat UI -->
+        <article class="chat-container">
+          <div class="card-header" style="padding: 1.25rem 1.5rem; margin-bottom: 0; background: var(--bg-card);">
+            <div>
+              <h2 class="card-title">Offline RAG Assistant (Q&A)</h2>
+              <p class="card-subtitle">Semantic Search + On-Device AI Synthesis</p>
+            </div>
+            <button id="btn-seed-docs" class="btn btn-primary btn-sm">
+              📥 Seed Docs DB ('offline-docs-db')
+            </button>
+          </div>
+
+          <div id="rag-chat-messages" class="chat-messages">
+            <div class="chat-bubble assistant">
+              Hello! I am an offline-capable RAG bot. Click <strong>"Seed Docs DB"</strong> above to index our
+              documentation into the Vector Store, then ask me anything! Try asking: <br /><br />
+              <em>"How do I configure the main router?"</em>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <input type="text" id="input-rag-question" class="form-input"
+              placeholder="Ask a question about network routers or built-in AI APIs..."
+              value="How do I configure the main router?" />
+            <button id="btn-rag-submit" class="btn btn-primary">Send</button>
+          </div>
+        </article>
+
+        <!-- Right: RAG Pipeline Visualization Inspector -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">RAG Pipeline Logs</h2>
+              <p class="card-subtitle">VectorStore.findNearest() -> Prompt Context</p>
+            </div>
+            <span id="badge-rag-status" class="badge badge-purple">IDLE</span>
+          </div>
+
+          <div id="rag-pipeline-log" style="display: flex; flex-direction: column; gap: 1rem; font-size: 0.85rem;">
+            <div class="result-card">
+              <strong>Step 1: Query Embedding</strong>
+              <p style="color: var(--text-muted); margin-top: 0.4rem;">Waiting for query input...</p>
+            </div>
+            <div class="result-card">
+              <strong>Step 2: Semantic Retrieval</strong>
+              <p style="color: var(--text-muted); margin-top: 0.4rem;">Top matching chunks from
+                <code>offline-docs-db</code> will appear here.</p>
+            </div>
+            <div class="result-card">
+              <strong>Step 3: Answer Synthesis</strong>
+              <p style="color: var(--text-muted); margin-top: 0.4rem;">Generated entirely on-device from context.</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- TAB 3: LIVE MODERATION & ANOMALY DETECTION -->
+    <section id="tab-mod" class="tab-panel" aria-labelledby="tab-btn-mod">
+      <div class="moderation-layout">
+        <!-- Left: Live Draft Editor -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Real-Time Content Intelligence</h2>
+              <p class="card-subtitle">Continuous query with taskType: 'retrieval-query' as user types</p>
+            </div>
+            <button id="btn-seed-moderation" class="btn btn-primary btn-sm">
+              🛡️ Seed Moderation DB
+            </button>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="textarea-mod-draft">Type a Comment Draft (Live Classification & Similarity
+              Screening)</label>
+            <textarea id="textarea-mod-draft" class="form-textarea" style="height: 160px;"
+              placeholder="Type something constructive... or test typing toxic/unhelpful phrases like 'stupid terrible spam'..."></textarea>
+          </div>
+
+          <div id="mod-alert-container">
+            <div class="alert-box alert-success">
+              <span>✓</span>
+              <div>
+                <strong>Content Status: Constructive & Safe</strong>
+                <p style="font-size: 0.82rem; margin-top: 0.2rem; opacity: 0.9;">No high-similarity matches with
+                  toxic/unhelpful patterns detected in the Vector Store.</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Right: Moderation Reference DB -->
+        <article class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Moderation Reference DB</h2>
+              <p class="card-subtitle">Pre-indexed Toxic vs. Helpful Anchors</p>
+            </div>
+            <span id="badge-mod-count" class="badge badge-blue">6 SEED ANCHORS</span>
+          </div>
+
+          <div id="mod-reference-list"
+            style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 400px; overflow-y: auto;">
+            <!-- Seeded moderation items -->
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- TAB 4: ARCHITECTURE & API REFERENCE -->
+    <section id="tab-docs" class="tab-panel" aria-labelledby="tab-btn-docs">
+      <div class="docs-container card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Vector Store API Polyfill Architecture</h2>
+            <p class="card-subtitle">Specification Compliance & Experimental Chrome Canary Integration</p>
+          </div>
+        </div>
+
+        <div
+          style="display: flex; flex-direction: column; gap: 1.5rem; color: var(--text-secondary); font-size: 0.95rem;">
+          <div>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">1. End-to-End Built-in AI Pattern</h3>
+            <p>
+              Our polyfill adheres strictly to the standard pattern established by Chrome Built-in AI APIs:
+              <code>availability() -> create() / retrieve() -> execute -> close()</code>.
+            </p>
+            <div class="code-block">
+              // 1. Check API availability
+              if (!VectorStore || (await VectorStore.availability()) === "unavailable") {
+              console.error("Vector Store API is not available.");
+              }
+
+              // 2. Create store with chunking strategy & distance metric
+              const vectorStore = await VectorStore.create({
+              id: "my-app-notes",
+              chunkingStrategy: { maxChunkSizeTokens: 400, chunkOverlapTokens: 50 },
+              distance_type: 'Cosine'
+              });</div>
+          </div>
+
+          <div>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">2. Chrome Canary Semantic Embedder
+              (EmbeddingGemma-300m)</h3>
+            <p>
+              Under the hood, the polyfill detects <code>window.SemanticEmbedder</code> in Chrome Canary and leverages
+              on-device embeddings. Crucially, it applies the appropriate <code>taskType</code> optimization parameter
+              for each operation:
+            </p>
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
+              <li><strong><code>taskType: "retrieval-document"</code></strong> — Applied automatically during
+                <code>vectorStore.insert()</code> and <code>updateContent()</code> so document chunks are optimized for
+                indexing.</li>
+              <li><strong><code>taskType: "retrieval-query"</code></strong> — Applied automatically during
+                <code>vectorStore.findNearest()</code> so search queries are optimized for retrieval against documents.
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">3. Persistent Indexing in IndexedDB</h3>
+            <p>
+              All stores, original items, and embedding vectors (<code>Float32Array</code>) are stored inside an
+              IndexedDB database named <code>VectorStorePolyfillDB</code>.
+              This allows developers to call <code>VectorStore.list()</code> to enumerate databases across browser
+              sessions and call <code>VectorStore.retrieve(id)</code> to open a store without re-ingesting documents.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Load Polyfill & App Logic -->
+  <script src="vector-store.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
