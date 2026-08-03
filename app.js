@@ -318,7 +318,7 @@
       },
       {
         id: 'doc_ai_1',
-        content: 'Chrome built-in AI APIs operate entirely offline on desktop devices using local models like EmbeddingGemma-300m for semantic embeddings.'
+        content: 'Built-in AI APIs operate entirely offline on desktop devices using local models like EmbeddingGemma-300m for semantic embeddings.'
       }
     ]);
   }
@@ -652,7 +652,7 @@
 
     let answerText = '';
 
-    // Check if Chrome LanguageModel is available
+    // Check if LanguageModel is available
     if (typeof window.LanguageModel !== 'undefined' && typeof window.LanguageModel.create === 'function') {
       try {
         const session = await window.LanguageModel.create({

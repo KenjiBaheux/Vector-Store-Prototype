@@ -4,9 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vector Store API Polyfill | Chrome Canary Semantic Embedder Showcase</title>
+  <title>Vector Store API Polyfill | Semantic Embedder Showcase</title>
   <meta name="description"
-    content="An end-to-end interactive polyfill and showcase for the proposed Vector Store API, built on top of Chrome Canary's experimental on-device Semantic Embedder API (EmbeddingGemma-300m)." />
+    content="An end-to-end interactive polyfill and showcase for the proposed Vector Store API, built on top of an experimental on-device Semantic Embedder API (EmbeddingGemma-300m)." />
   <!-- Google Fonts for Modern Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
       <div class="brand-icon">VS</div>
       <div>
         <h1 class="brand-title">Vector Store API Polyfill</h1>
-        <div class="brand-subtitle">Built on Chrome Canary Semantic Embedder API</div>
+        <div class="brand-subtitle">Built on the experimental Semantic Embedder API</div>
       </div>
     </div>
     <div class="status-container">
@@ -271,7 +271,8 @@
             <div class="result-card">
               <strong>Step 2: Semantic Retrieval</strong>
               <p style="color: var(--text-muted); margin-top: 0.4rem;">Top matching chunks from
-                <code>offline-docs-db</code> will appear here.</p>
+                <code>offline-docs-db</code> will appear here.
+              </p>
             </div>
             <div class="result-card">
               <strong>Step 3: Answer Synthesis</strong>
@@ -340,7 +341,7 @@
         <div class="card-header">
           <div>
             <h2 class="card-title">Vector Store API Polyfill Architecture</h2>
-            <p class="card-subtitle">Specification Compliance & Experimental Chrome Canary Integration</p>
+            <p class="card-subtitle">Specification Compliance & Experimental Integration</p>
           </div>
         </div>
 
@@ -349,7 +350,7 @@
           <div>
             <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">1. End-to-End Built-in AI Pattern</h3>
             <p>
-              Our polyfill adheres strictly to the standard pattern established by Chrome Built-in AI APIs:
+              Our polyfill adheres strictly to the common pattern established by Built-in AI APIs:
               <code>availability() -> create() / retrieve() -> execute -> close()</code>.
             </p>
             <div class="code-block">
@@ -367,17 +368,18 @@
           </div>
 
           <div>
-            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">2. Chrome Canary Semantic Embedder
+            <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">2. Experimental Semantic Embedder
               (EmbeddingGemma-300m)</h3>
             <p>
-              Under the hood, the polyfill detects <code>window.SemanticEmbedder</code> in Chrome Canary and leverages
-              on-device embeddings. Crucially, it applies the appropriate <code>taskType</code> optimization parameter
+              Under the hood, the polyfill detects <code>window.SemanticEmbedder</code> when available, and leverages
+              on-device embeddings. It also applies the appropriate <code>taskType</code> optimization parameter
               for each operation:
             </p>
             <ul style="margin-left: 1.5rem; margin-top: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem;">
               <li><strong><code>taskType: "retrieval-document"</code></strong> — Applied automatically during
                 <code>vectorStore.insert()</code> and <code>updateContent()</code> so document chunks are optimized for
-                indexing.</li>
+                indexing.
+              </li>
               <li><strong><code>taskType: "retrieval-query"</code></strong> — Applied automatically during
                 <code>vectorStore.findNearest()</code> so search queries are optimized for retrieval against documents.
               </li>

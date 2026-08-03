@@ -1,6 +1,6 @@
 # Vector Store API Polyfill
 
-An end-to-end, zero-dependency JavaScript polyfill for the proposed **Vector Store API**, built on top of Chrome Canary's experimental on-device **[Semantic Embedder API](./vector-store.js#L30)** (`EmbeddingGemma-300m`).
+An end-to-end, zero-dependency JavaScript polyfill for the proposed **Vector Store API**, built on top of the experimental on-device **[Semantic Embedder API](./vector-store.js#L30)** (`EmbeddingGemma-300m`).
 
 This library enables web applications to perform privacy-preserving, low-latency semantic search, document ingestion, and Retrieval-Augmented Generation (RAG) entirely on the client side without server-side embedding costs.
 
@@ -8,7 +8,7 @@ This library enables web applications to perform privacy-preserving, low-latency
 
 ## Features
 
-- **100% On-Device AI**: Leverages the experimental Chrome Canary `window.SemanticEmbedder` API (`embeddinggemma-300m`) when available, keeping sensitive user data strictly on-device.
+- **100% On-Device AI**: Leverages the experimental `window.SemanticEmbedder` API (`embeddinggemma-300m`) when available, keeping sensitive user data strictly on-device.
 - **Automatic `taskType` Optimization**:
   - Automatically passes `{ taskType: "retrieval-document" }` during [vectorStore.insert()](./vector-store.js#L265) and [updateContent()](./vector-store.js#L377) so document embeddings are optimized for indexing.
   - Automatically passes `{ taskType: "retrieval-query" }` during [vectorStore.findNearest()](./vector-store.js#L327) so queries are optimized for similarity search.
@@ -48,7 +48,7 @@ import VectorStore from './vector-store.js';
 
 ### 2. Standard Built-in AI Lifecycle
 
-The API follows the standard Chrome Built-in AI sequence: `availability() -> create() -> execute -> close()`.
+The API follows the common Built-in AI sequence: `availability() -> create() -> execute -> close()`.
 
 ```javascript
 // 1. Check if the API is available
@@ -124,7 +124,7 @@ vectorStore.close();
 ---
 
 ### 2. Retrieval-Augmented Generation (RAG)
-Combine the `VectorStore` API (for retrieval) with the built-in Chrome `LanguageModel` Prompt API (for text generation) to create an offline-capable Q&A bot.
+Combine the `VectorStore` API (for retrieval) with the built-in `LanguageModel` Prompt API (for text generation) to create an offline-capable Q&A bot.
 
 ```javascript
 // 1. Retrieve a pre-indexed vector store containing documentation
@@ -220,7 +220,7 @@ await VectorStore.delete("my-app-notes");
 ---
 
 ### 5. Direct Usage of the Underlying Semantic Embedder API
-The polyfill is built directly on top of Chrome Canary's experimental `SemanticEmbedder` API (`EmbeddingGemma-300m`). Here is how you can use the underlying API directly when granular control over `taskType` is required:
+The polyfill is built directly on top of the experimental `SemanticEmbedder` API (`EmbeddingGemma-300m`). Here is how you can use the underlying API directly when granular control over `taskType` is required:
 
 ```javascript
 // 1. Check if the Semantic Embedder API is available

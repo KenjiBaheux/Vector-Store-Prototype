@@ -1,12 +1,12 @@
 /**
  * Vector Store API Polyfill
- * Built on top of the experimental Semantic Embedder API (EmbeddingGemma-300m) in Chrome Canary.
+ * Built on top of the experimental Semantic Embedder API (EmbeddingGemma-300m).
  *
  * Implements:
  * - Static methods: availability(), params(), create(), retrieve(), list(), delete()
  * - Store methods: insert(), findNearest(), listContents(), updateContent(), deleteContent(), close()
  * - Intelligent sentence/token-aware chunking
- * - Strict detection of Chrome Canary Semantic Embedder API with setup instructions when disabled
+ * - Strict detection of the experimental Semantic Embedder API with setup instructions when disabled
  */
 
 (function (global) {
