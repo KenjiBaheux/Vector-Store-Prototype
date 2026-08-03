@@ -58,6 +58,16 @@
   const elModReferenceList = document.getElementById('mod-reference-list');
   const elBadgeModCount = document.getElementById('badge-mod-count');
 
+  // Edit Dialog Elements
+  const elEditDialog = document.getElementById('edit-dialog');
+  const elEditDialogItemId = document.getElementById('edit-dialog-item-id');
+  const elTextareaEditContent = document.getElementById('textarea-edit-content');
+  const elBtnCloseDialog = document.getElementById('btn-close-dialog');
+  const elBtnCancelEdit = document.getElementById('btn-cancel-edit');
+  const elBtnSaveEdit = document.getElementById('btn-save-edit');
+
+  let activeEditDialogResolver = null;
+
   // ---------------------------------------------------------------------------
   // Helper: Show setup instructions alert/banner
   // ---------------------------------------------------------------------------
@@ -122,6 +132,28 @@
         const panel = document.getElementById(targetId);
         if (panel) panel.classList.add('active');
       });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helper: Modern Edit Dialog Controller
+  // ---------------------------------------------------------------------------
+  function showEditDialog(itemId, currentContent) {
+    return new Promise((resolve) => {
+      if (activeEditDialogResolver) {
+        activeEditDialogResolver(null);
+      }
+      activeEditDialogResolver = resolve;
+
+      elEditDialogItemId.textContent = itemId;
+      elTextareaEditContent.value = currentContent || '';
+
+      elEditDialog.showModal();
+      
+      // Auto-focus and place cursor at the end of content
+      elTextareaEditContent.focus();
+      const valLength = elTextareaEditContent.value.length;
+      elTextareaEditContent.setSelectionRange(valLength, valLength);
     });
   }
 
@@ -246,6 +278,65 @@
     });
 
     elTextareaModDraft.addEventListener('input', () => debounce(handleLiveModerationCheck, 250)());
+
+    // Edit Dialog Controls
+    elBtnSaveEdit.addEventListener('click', () => {
+      if (activeEditDialogResolver) {
+        activeEditDialogResolver(elTextareaEditContent.value);
+        activeEditDialogResolver = null;
+      }
+      elEditDialog.close();
+    });
+
+    elBtnCancelEdit.addEventListener('click', () => {
+      if (activeEditDialogResolver) {
+        activeEditDialogResolver(null);
+        activeEditDialogResolver = null;
+      }
+      elEditDialog.close();
+    });
+
+    elBtnCloseDialog.addEventListener('click', () => {
+      if (activeEditDialogResolver) {
+        activeEditDialogResolver(null);
+        activeEditDialogResolver = null;
+      }
+      elEditDialog.close();
+    });
+
+    // Dismiss dialog when clicking backdrop
+    elEditDialog.addEventListener('click', (e) => {
+      const rect = elEditDialog.getBoundingClientRect();
+      const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                          rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+      if (!isInDialog) {
+        if (activeEditDialogResolver) {
+          activeEditDialogResolver(null);
+          activeEditDialogResolver = null;
+        }
+        elEditDialog.close();
+      }
+    });
+
+    // Handle ESC press (natively closes, triggers 'close' event on the dialog)
+    elEditDialog.addEventListener('close', () => {
+      if (activeEditDialogResolver) {
+        activeEditDialogResolver(null);
+        activeEditDialogResolver = null;
+      }
+    });
+
+    // Ctrl+Enter or Cmd+Enter to save changes inside edit textarea
+    elTextareaEditContent.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (activeEditDialogResolver) {
+          activeEditDialogResolver(elTextareaEditContent.value);
+          activeEditDialogResolver = null;
+        }
+        elEditDialog.close();
+      }
+    });
   }
 
   // Debounce utility
@@ -461,8 +552,8 @@
       editBtn.className = 'btn btn-secondary btn-sm';
       editBtn.textContent = '✏️ Edit';
       editBtn.addEventListener('click', async () => {
-        const newText = prompt('Update text note for ' + item.id + ':', item.content);
-        if (newText && newText !== item.content) {
+        const newText = await showEditDialog(item.id, item.content);
+        if (newText !== null && newText !== item.content) {
           await activeStore.updateContent(item.id, newText);
           await refreshStoreList();
           await renderActiveStore();

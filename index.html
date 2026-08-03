@@ -399,6 +399,28 @@ const vectorStore = await VectorStore.create({
     </section>
   </main>
 
+  <!-- Modern Edit Dialog -->
+  <dialog id="edit-dialog" class="edit-dialog">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 class="dialog-title">✏️ Edit Content</h3>
+        <button type="button" id="btn-close-dialog" class="btn-close-dialog" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="textarea-edit-content" style="margin-bottom: 0.6rem;">
+            Update text note for <span id="edit-dialog-item-id" style="color: var(--accent-cyan); font-family: var(--font-mono); font-weight: 600;"></span>:
+          </label>
+          <textarea id="textarea-edit-content" class="form-textarea edit-textarea" placeholder="Enter text content..."></textarea>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" id="btn-cancel-edit" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="btn-save-edit" class="btn btn-primary">Save Changes</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Load Polyfill & App Logic -->
   <script src="vector-store.js"></script>
   <script src="app.js"></script>

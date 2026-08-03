@@ -622,3 +622,102 @@ body {
   line-height: 1.5;
   white-space: pre-wrap;
 }
+
+/* ==========================================================================
+   Modern Edit Dialog Modal (Lightbox Style)
+   ========================================================================== */
+dialog.edit-dialog {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 0;
+  max-width: 650px;
+  width: 90%;
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  margin: auto;
+  outline: none;
+  overflow: hidden;
+}
+
+dialog.edit-dialog::backdrop {
+  background: rgba(7, 10, 19, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Slide/scale transition when opening */
+dialog.edit-dialog[open] {
+  animation: dialog-fade-in var(--transition-normal) cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes dialog-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-secondary);
+}
+
+.dialog-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.btn-close-dialog {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+
+.btn-close-dialog:hover {
+  color: var(--accent-red);
+}
+
+.dialog-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-textarea {
+  min-height: 180px;
+  max-height: 400px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.dialog-actions {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
