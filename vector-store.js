@@ -474,11 +474,7 @@
     async listContents() {
       const records = await VectorStoreDB.listContentsByStore(this.id);
       return records.map((r) => ({
-        id: r.id,
-        vector_store_id: r.vector_store_id,
-        content: r.content,
-        createdAt: r.createdAt,
-        lastModified: r.lastModified
+        ...r
       }));
     }
 
