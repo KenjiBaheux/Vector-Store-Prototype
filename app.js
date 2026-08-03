@@ -67,6 +67,39 @@
   const elBtnSaveEdit = document.getElementById('btn-save-edit');
 
   let activeEditDialogResolver = null;
+  
+  // Similarity Matrix Elements
+  const elSelectMatrixStore = document.getElementById('select-matrix-store');
+  const elBtnGenerateMatrix = document.getElementById('btn-generate-matrix');
+  const elMatrixProgressContainer = document.getElementById('matrix-progress-container');
+  const elMatrixProgressText = document.getElementById('matrix-progress-text');
+  const elMatrixProgressPercent = document.getElementById('matrix-progress-percent');
+  const elMatrixProgressBar = document.getElementById('matrix-progress-bar');
+  const elMatrixItemsList = document.getElementById('matrix-items-list');
+  const elCanvasSimilarityMatrix = document.getElementById('canvas-similarity-matrix');
+  const elMatrixTooltip = document.getElementById('matrix-tooltip');
+  const elMatrixInspectorEmpty = document.getElementById('matrix-inspector-empty');
+  const elMatrixInspectorContent = document.getElementById('matrix-inspector-content');
+  const elInspectorScoreBadge = document.getElementById('inspector-score-badge');
+  const elInspectorRelationBadge = document.getElementById('inspector-relation-badge');
+  const elInspectorDocAId = document.getElementById('inspector-doc-a-id');
+  const elInspectorDocAText = document.getElementById('inspector-doc-a-text');
+  const elInspectorDocBId = document.getElementById('inspector-doc-b-id');
+  const elInspectorDocBText = document.getElementById('inspector-doc-b-text');
+  const elInputMatrixQuery = document.getElementById('input-matrix-query');
+  const elBtnMatrixQueryScan = document.getElementById('btn-matrix-query-scan');
+  const elRelationshipInspectorCard = document.getElementById('relationship-inspector-card');
+  const elInspectorCardSubtitle = document.getElementById('inspector-card-subtitle');
+
+  // Similarity Matrix State
+  let matrixItems = [];
+  let matrixScores = [];
+  let matrixQueryScores = null;
+  let matrixHoveredCell = null;
+  let matrixActiveAxisHighlight = null;
+  let matrixInspectedCell = null;
+  let matrixInspectorHovered = false;
+  let matrixPinnedCell = null;
 
   // ---------------------------------------------------------------------------
   // Helper: Show setup instructions alert/banner
@@ -131,6 +164,13 @@
         btn.classList.add('active');
         const panel = document.getElementById(targetId);
         if (panel) panel.classList.add('active');
+
+        if (targetId === 'tab-matrix') {
+          if (activeStoreId && elSelectMatrixStore) {
+            elSelectMatrixStore.value = activeStoreId;
+          }
+          drawMatrixCanvas();
+        }
       });
     });
   }
@@ -169,6 +209,12 @@
       }
       activeStore = null;
       activeStoreId = null;
+      matrixPinnedCell = null;
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.remove('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = 'Hover over a grid cell to compare texts';
+        elInspectorCardSubtitle.classList.remove('pinned');
+      }
       await initApp();
     });
 
@@ -337,6 +383,37 @@
         elEditDialog.close();
       }
     });
+
+    // Similarity Matrix Event Listeners
+    if (elBtnGenerateMatrix) {
+      elBtnGenerateMatrix.addEventListener('click', generateSimilarityMatrix);
+    }
+    if (elCanvasSimilarityMatrix) {
+      elCanvasSimilarityMatrix.addEventListener('mousemove', handleMatrixCanvasMouseMove);
+      elCanvasSimilarityMatrix.addEventListener('mouseleave', handleMatrixCanvasMouseLeave);
+      elCanvasSimilarityMatrix.addEventListener('click', handleMatrixCanvasClick);
+    }
+    if (elBtnMatrixQueryScan) {
+      elBtnMatrixQueryScan.addEventListener('click', scanMatrixQuery);
+    }
+    if (elInputMatrixQuery) {
+      elInputMatrixQuery.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          scanMatrixQuery();
+        }
+      });
+    }
+
+    if (elMatrixInspectorContent) {
+      elMatrixInspectorContent.addEventListener('mouseenter', () => {
+        matrixInspectorHovered = true;
+        drawMatrixCanvas();
+      });
+      elMatrixInspectorContent.addEventListener('mouseleave', () => {
+        matrixInspectorHovered = false;
+        drawMatrixCanvas();
+      });
+    }
   }
 
   // Debounce utility
@@ -494,6 +571,23 @@
       item.appendChild(rightDiv);
       elStoreListContainer.appendChild(item);
     });
+
+    // Sync select-matrix-store dropdown in the Matrix tab
+    if (elSelectMatrixStore) {
+      const selectedVal = elSelectMatrixStore.value;
+      elSelectMatrixStore.replaceChildren();
+      stores.forEach((storeMeta) => {
+        const option = document.createElement('option');
+        option.value = storeMeta.id;
+        option.textContent = storeMeta.id;
+        elSelectMatrixStore.appendChild(option);
+      });
+      if (selectedVal && stores.some(s => s.id === selectedVal)) {
+        elSelectMatrixStore.value = selectedVal;
+      } else if (activeStoreId && stores.some(s => s.id === activeStoreId)) {
+        elSelectMatrixStore.value = activeStoreId;
+      }
+    }
   }
 
   async function loadStore(storeId) {
@@ -884,6 +978,581 @@
     alertBox.appendChild(icon);
     alertBox.appendChild(body);
     elModAlertContainer.appendChild(alertBox);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 9. Semantic Similarity Adjacency Matrix (Tab 4 logic)
+  // ---------------------------------------------------------------------------
+  async function generateSimilarityMatrix() {
+    const storeId = elSelectMatrixStore.value;
+    if (!storeId) {
+      alert('Please select or create a Vector Store first.');
+      return;
+    }
+
+    elBtnGenerateMatrix.disabled = true;
+    elMatrixProgressContainer.style.display = 'block';
+    
+    try {
+      const store = await window.VectorStore.retrieve(storeId);
+      const items = await store.listContents();
+      
+      if (items.length === 0) {
+        alert('Active store is empty. Please add some notes first in the Store Explorer tab.');
+        elMatrixProgressContainer.style.display = 'none';
+        elBtnGenerateMatrix.disabled = false;
+        return;
+      }
+
+      matrixItems = items;
+      const N = items.length;
+      matrixScores = Array.from({ length: N }, () => Array(N).fill(0));
+      matrixQueryScores = null; // reset live query scanner
+      matrixPinnedCell = null; // reset pinned cell
+      
+      // Update items list on the left
+      renderMatrixItemsList(items);
+
+      // Perform N findNearest calls
+      for (let i = 0; i < N; i++) {
+        const itemA = items[i];
+        
+        // Update progress bar
+        const percent = Math.round((i / N) * 100);
+        elMatrixProgressPercent.textContent = `${percent}%`;
+        elMatrixProgressText.textContent = `Analyzing item ${i + 1} of ${N}: "${itemA.id}"`;
+        elMatrixProgressBar.style.width = `${percent}%`;
+
+        // Query the store with Item A's content
+        // We set score_threshold: -1 to get all results regardless of score
+        // Retrieve a large number of results to ensure we capture all document chunks
+        const results = await store.findNearest(itemA.content, {
+          max_num_results: 9999,
+          score_threshold: -1
+        });
+
+        // Map results back to index
+        // Find the max score for each item ID
+        const idToMaxScore = {};
+        results.forEach(r => {
+          if (idToMaxScore[r.id] === undefined || r.score > idToMaxScore[r.id]) {
+            idToMaxScore[r.id] = r.score;
+          }
+        });
+
+        // Fill in the matrix row
+        for (let j = 0; j < N; j++) {
+          const itemB = items[j];
+          if (i === j) {
+            matrixScores[i][j] = 1.0;
+          } else {
+            matrixScores[i][j] = idToMaxScore[itemB.id] !== undefined ? idToMaxScore[itemB.id] : 0.0;
+          }
+        }
+      }
+
+      // Finish progress bar
+      elMatrixProgressPercent.textContent = '100%';
+      elMatrixProgressText.textContent = 'Analysis complete!';
+      elMatrixProgressBar.style.width = '100%';
+      
+      setTimeout(() => {
+        elMatrixProgressContainer.style.display = 'none';
+      }, 1000);
+
+      // Draw the matrix canvas
+      drawMatrixCanvas();
+      
+      // Update inspector state
+      elMatrixInspectorEmpty.style.display = 'block';
+      elMatrixInspectorContent.style.display = 'none';
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.remove('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = 'Hover over a grid cell to compare texts';
+        elInspectorCardSubtitle.classList.remove('pinned');
+      }
+
+    } catch (err) {
+      console.error('Error generating matrix:', err);
+      alert('Error generating matrix: ' + err.message);
+      elMatrixProgressContainer.style.display = 'none';
+    } finally {
+      elBtnGenerateMatrix.disabled = false;
+    }
+  }
+
+  function renderMatrixItemsList(items) {
+    elMatrixItemsList.replaceChildren();
+    items.forEach((item, index) => {
+      const card = document.createElement('div');
+      card.className = 'matrix-item-card';
+
+      card.addEventListener('mouseenter', () => {
+        matrixActiveAxisHighlight = index;
+        drawMatrixCanvas();
+      });
+      card.addEventListener('mouseleave', () => {
+        matrixActiveAxisHighlight = null;
+        drawMatrixCanvas();
+      });
+
+      const badge = document.createElement('span');
+      badge.className = 'matrix-axis-badge';
+      badge.textContent = index.toString();
+
+      const body = document.createElement('div');
+      body.style.overflow = 'hidden';
+
+      const idEl = document.createElement('strong');
+      idEl.style.color = 'var(--accent-cyan)';
+      idEl.style.fontSize = '0.8rem';
+      idEl.textContent = item.id;
+
+      const textEl = document.createElement('div');
+      textEl.style.fontSize = '0.72rem';
+      textEl.style.color = 'var(--text-secondary)';
+      textEl.style.whiteSpace = 'nowrap';
+      textEl.style.overflow = 'hidden';
+      textEl.style.textOverflow = 'ellipsis';
+      textEl.textContent = item.content;
+
+      body.appendChild(idEl);
+      body.appendChild(textEl);
+      card.appendChild(badge);
+      card.appendChild(body);
+      elMatrixItemsList.appendChild(card);
+    });
+  }
+
+  function drawMatrixCanvas() {
+    const canvas = elCanvasSimilarityMatrix;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const N = matrixItems.length;
+    if (N === 0) {
+      // Draw empty placeholder text
+      ctx.fillStyle = 'hsl(215, 15%, 55%)';
+      ctx.font = '14px Inter';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('No matrix data. Click Generate above.', canvas.width / 2, canvas.height / 2);
+      return;
+    }
+
+    const hasQuery = matrixQueryScores !== null;
+    const cols = N;
+    const rows = hasQuery ? N + 1 : N;
+
+    const offsetX = 45;
+    const offsetY = 45;
+    const gridWidth = canvas.width - offsetX - 15;
+    const gridHeight = canvas.height - offsetY - 15;
+
+    const cellW = gridWidth / cols;
+    const cellH = gridHeight / rows;
+
+    // Draw grid background
+    ctx.fillStyle = 'rgb(11, 14, 22)'; // --bg-primary
+    ctx.fillRect(offsetX, offsetY, gridWidth, gridHeight);
+
+    // Draw cells
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        let score = 0;
+        let isQueryRow = false;
+
+        if (r < N) {
+          score = matrixScores[r][c];
+        } else {
+          score = matrixQueryScores[c];
+          isQueryRow = true;
+        }
+
+        // Get color for similarity score
+        ctx.fillStyle = getScoreColor(score);
+        
+        // Draw fill rect
+        const rx = offsetX + c * cellW;
+        const ry = offsetY + r * cellH;
+        ctx.fillRect(rx + 1, ry + 1, cellW - 2, cellH - 2);
+
+        // 1. Solid highlight for the exact hovered cell on canvas (salient pink)
+        if (matrixHoveredCell && matrixHoveredCell.row === r && matrixHoveredCell.col === c) {
+          ctx.strokeStyle = 'hsl(328, 100%, 65%)';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(rx, ry, cellW, cellH);
+        }
+
+        // 2. Solid highlight for the inspected cell on Relationship Inspector hover
+        if (matrixInspectorHovered && matrixInspectedCell && matrixInspectedCell.row === r && matrixInspectedCell.col === c) {
+          ctx.strokeStyle = 'hsl(265, 85%, 65%)'; // Bold Purple border for inspected cell
+          ctx.lineWidth = 2.5;
+          ctx.strokeRect(rx, ry, cellW, cellH);
+        }
+
+        // 3. Solid highlight for the pinned cell
+        if (matrixPinnedCell && matrixPinnedCell.row === r && matrixPinnedCell.col === c) {
+          ctx.strokeStyle = 'hsl(38, 95%, 55%)'; // Gold/Amber border for pinned cell
+          ctx.lineWidth = 3;
+          ctx.strokeRect(rx + 1, ry + 1, cellW - 2, cellH - 2);
+        }
+
+        // Special border for the live query row
+        if (isQueryRow) {
+          ctx.strokeStyle = 'hsla(265, 85%, 65%, 0.4)'; // Purple border
+          ctx.lineWidth = 1;
+          ctx.strokeRect(rx, ry, cellW, cellH);
+        }
+      }
+    }
+
+    // Draw Column Labels (on top X axis)
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    for (let c = 0; c < cols; c++) {
+      const rx = offsetX + c * cellW + cellW / 2;
+      if (matrixActiveAxisHighlight !== null && matrixActiveAxisHighlight === c) {
+        ctx.fillStyle = 'hsla(210, 100%, 60%, 0.2)';
+        ctx.beginPath();
+        ctx.arc(rx, offsetY - 13, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'hsl(210, 100%, 60%)';
+        ctx.font = 'bold 11px Fira Code, monospace';
+      } else {
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = 'bold 10px Fira Code, monospace';
+      }
+      ctx.fillText(c.toString(), rx, offsetY - 8);
+    }
+
+    // Draw Row Labels (on left Y axis)
+    ctx.textBaseline = 'middle';
+    for (let r = 0; r < rows; r++) {
+      const ry = offsetY + r * cellH + cellH / 2;
+      if (r < N) {
+        if (matrixActiveAxisHighlight !== null && matrixActiveAxisHighlight === r) {
+          ctx.fillStyle = 'hsla(210, 100%, 60%, 0.2)';
+          ctx.beginPath();
+          ctx.arc(offsetX - 15, ry, 10, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = 'hsl(210, 100%, 60%)';
+          ctx.font = 'bold 11px Fira Code, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(r.toString(), offsetX - 15, ry);
+        } else {
+          ctx.fillStyle = '#9ca3af';
+          ctx.font = 'bold 10px Fira Code, monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText(r.toString(), offsetX - 10, ry);
+        }
+      } else {
+        ctx.fillStyle = 'hsl(265, 85%, 65%)';
+        ctx.font = 'bold 10px Fira Code, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('Q', offsetX - 10, ry);
+      }
+    }
+
+    // Draw borders / dividing line for query row
+    if (hasQuery) {
+      ctx.strokeStyle = 'hsl(265, 85%, 65%)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(offsetX, offsetY + N * cellH);
+      ctx.lineTo(offsetX + gridWidth, offsetY + N * cellH);
+      ctx.stroke();
+    }
+  }
+
+  function getScoreColor(score) {
+    const s = Math.max(0, Math.min(1, score));
+
+    if (s <= 0.3) {
+      const factor = s / 0.3;
+      const r = Math.round(22 + (28 - 22) * factor);
+      const g = Math.round(26 + (48 - 26) * factor);
+      const b = Math.round(37 + (80 - 37) * factor);
+      return `rgb(${r}, ${g}, ${b})`;
+    } else if (s <= 0.6) {
+      const factor = (s - 0.3) / 0.3;
+      const r = Math.round(28 + (59 - 28) * factor);
+      const g = Math.round(48 + (130 - 48) * factor);
+      const b = Math.round(80 + (246 - 80) * factor);
+      return `rgb(${r}, ${g}, ${b})`;
+    } else if (s <= 0.85) {
+      const factor = (s - 0.6) / 0.25;
+      const r = Math.round(59 + (0 - 59) * factor);
+      const g = Math.round(130 + (229 - 130) * factor);
+      const b = Math.round(246 + (255 - 246) * factor);
+      return `rgb(${r}, ${g}, ${b})`;
+    } else {
+      const factor = (s - 0.85) / 0.15;
+      const r = Math.round(0 + (34 - 0) * factor);
+      const g = Math.round(229 + (197 - 229) * factor);
+      const b = Math.round(255 + (94 - 255) * factor);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  }
+
+  function handleMatrixCanvasMouseMove(e) {
+    const canvas = elCanvasSimilarityMatrix;
+    const wrapper = document.getElementById('matrix-canvas-wrapper');
+    if (!canvas || !wrapper) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const wrapperRect = wrapper.getBoundingClientRect();
+    
+    // Mouse coordinates relative to the parent wrapper (for absolute positioning)
+    const wrapperX = e.clientX - wrapperRect.left;
+    const wrapperY = e.clientY - wrapperRect.top;
+    
+    // Mouse coordinates relative to the canvas (for index grid calculations)
+    const canvasX = e.clientX - canvasRect.left;
+    const canvasY = e.clientY - canvasRect.top;
+    
+    const x = (canvasX / canvasRect.width) * canvas.width;
+    const y = (canvasY / canvasRect.height) * canvas.height;
+
+    const N = matrixItems.length;
+    if (N === 0) return;
+
+    const hasQuery = matrixQueryScores !== null;
+    const cols = N;
+    const rows = hasQuery ? N + 1 : N;
+
+    const offsetX = 45;
+    const offsetY = 45;
+    const gridWidth = canvas.width - offsetX - 15;
+    const gridHeight = canvas.height - offsetY - 15;
+
+    if (x >= offsetX && x < offsetX + gridWidth && y >= offsetY && y < offsetY + gridHeight) {
+      const cellW = gridWidth / cols;
+      const cellH = gridHeight / rows;
+      
+      const col = Math.floor((x - offsetX) / cellW);
+      const row = Math.floor((y - offsetY) / cellH);
+
+      if (col >= 0 && col < cols && row >= 0 && row < rows) {
+        // Track tooltip position smoothly on every move
+        showMatrixTooltip(wrapperX, wrapperY, row, col);
+
+        if (!matrixHoveredCell || matrixHoveredCell.row !== row || matrixHoveredCell.col !== col) {
+          matrixHoveredCell = { row, col };
+          drawMatrixCanvas();
+          if (!matrixPinnedCell) {
+            updateMatrixInspector(row, col);
+          }
+        }
+      }
+    } else {
+      if (matrixHoveredCell !== null) {
+        matrixHoveredCell = null;
+        drawMatrixCanvas();
+        hideMatrixTooltip();
+      }
+    }
+  }
+
+  function handleMatrixCanvasMouseLeave() {
+    if (matrixHoveredCell !== null) {
+      matrixHoveredCell = null;
+      drawMatrixCanvas();
+      hideMatrixTooltip();
+    }
+  }
+
+  function handleMatrixCanvasClick(e) {
+    const canvas = elCanvasSimilarityMatrix;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const canvasX = e.clientX - canvasRect.left;
+    const canvasY = e.clientY - canvasRect.top;
+    
+    const x = (canvasX / canvasRect.width) * canvas.width;
+    const y = (canvasY / canvasRect.height) * canvas.height;
+
+    const N = matrixItems.length;
+    if (N === 0) return;
+
+    const hasQuery = matrixQueryScores !== null;
+    const cols = N;
+    const rows = hasQuery ? N + 1 : N;
+
+    const offsetX = 45;
+    const offsetY = 45;
+    const gridWidth = canvas.width - offsetX - 15;
+    const gridHeight = canvas.height - offsetY - 15;
+
+    if (x >= offsetX && x < offsetX + gridWidth && y >= offsetY && y < offsetY + gridHeight) {
+      const cellW = gridWidth / cols;
+      const cellH = gridHeight / rows;
+      
+      const col = Math.floor((x - offsetX) / cellW);
+      const row = Math.floor((y - offsetY) / cellH);
+
+      if (col >= 0 && col < cols && row >= 0 && row < rows) {
+        if (matrixPinnedCell && matrixPinnedCell.row === row && matrixPinnedCell.col === col) {
+          matrixPinnedCell = null;
+          updateMatrixInspector(row, col);
+        } else {
+          matrixPinnedCell = { row, col };
+          updateMatrixInspector(row, col);
+        }
+        drawMatrixCanvas();
+      }
+    }
+  }
+
+  function showMatrixTooltip(localX, localY, row, col) {
+    const tooltip = elMatrixTooltip;
+    const N = matrixItems.length;
+    let score = 0;
+    let rowName = '';
+    const colName = matrixItems[col].id;
+
+    if (row < N) {
+      score = matrixScores[row][col];
+      rowName = matrixItems[row].id;
+    } else {
+      score = matrixQueryScores[col];
+      rowName = 'Live Query';
+    }
+
+    tooltip.textContent = `[${rowName}] x [${colName}]: ${score.toFixed(4)}`;
+    tooltip.style.left = `${localX + 15}px`;
+    tooltip.style.top = `${localY + 15}px`;
+    tooltip.style.display = 'block';
+  }
+
+  function hideMatrixTooltip() {
+    elMatrixTooltip.style.display = 'none';
+  }
+
+  function updateMatrixInspector(row, col) {
+    matrixInspectedCell = { row, col };
+    const N = matrixItems.length;
+    const itemB = matrixItems[col];
+    let itemA = null;
+    let score = 0;
+
+    if (row < N) {
+      itemA = matrixItems[row];
+      score = matrixScores[row][col];
+    } else {
+      itemA = {
+        id: 'Live Query',
+        content: elInputMatrixQuery.value.trim() || '(Empty search string)'
+      };
+      score = matrixQueryScores[col];
+    }
+
+    elInspectorScoreBadge.textContent = `SCORE: ${score.toFixed(4)}`;
+    
+    let relationText = 'UNRELATED';
+    let relationClass = 'badge-red';
+    if (score >= 0.85) {
+      relationText = 'IDENTITY / EXCELLENT MATCH';
+      relationClass = 'badge-green';
+    } else if (score >= 0.6) {
+      relationText = 'STRONG MATCH';
+      relationClass = 'badge-green';
+    } else if (score >= 0.3) {
+      relationText = 'WEAK MATCH';
+      relationClass = 'badge-blue';
+    } else {
+      relationText = 'UNRELATED';
+      relationClass = 'badge-red';
+    }
+
+    elInspectorRelationBadge.textContent = relationText;
+    elInspectorRelationBadge.className = `badge ${relationClass}`;
+
+    elInspectorDocAId.textContent = `Document A (Row ${row < N ? row : 'Q'}): ${itemA.id}`;
+    elInspectorDocAText.textContent = itemA.content;
+
+    elInspectorDocBId.textContent = `Document B (Col ${col}): ${itemB.id}`;
+    elInspectorDocBText.textContent = itemB.content;
+
+    const isPinned = matrixPinnedCell && matrixPinnedCell.row === row && matrixPinnedCell.col === col;
+    if (isPinned) {
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.add('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = '📌 Pinned Comparison (Click cell again to unpin)';
+        elInspectorCardSubtitle.classList.add('pinned');
+      }
+    } else {
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.remove('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = 'Hover over a grid cell to compare texts';
+        elInspectorCardSubtitle.classList.remove('pinned');
+      }
+    }
+
+    elMatrixInspectorEmpty.style.display = 'none';
+    elMatrixInspectorContent.style.display = 'flex';
+  }
+
+  async function scanMatrixQuery() {
+    const storeId = elSelectMatrixStore.value;
+    const query = elInputMatrixQuery.value.trim();
+    if (!storeId || !query) {
+      alert('Please enter query text and generate a matrix first.');
+      return;
+    }
+
+    if (matrixItems.length === 0) {
+      alert('Please generate the matrix first.');
+      return;
+    }
+
+    matrixPinnedCell = null;
+
+    elBtnMatrixQueryScan.disabled = true;
+    elBtnMatrixQueryScan.textContent = 'Embedding & Scanning...';
+
+    try {
+      const store = await window.VectorStore.retrieve(storeId);
+      const N = matrixItems.length;
+
+      // Retrieve a large number of results to ensure we capture all document chunks
+      const results = await store.findNearest(query, {
+        max_num_results: 9999,
+        score_threshold: -1
+      });
+
+      const idToMaxScore = {};
+      results.forEach(r => {
+        if (idToMaxScore[r.id] === undefined || r.score > idToMaxScore[r.id]) {
+          idToMaxScore[r.id] = r.score;
+        }
+      });
+
+      matrixQueryScores = Array(N).fill(0);
+      for (let j = 0; j < N; j++) {
+        const item = matrixItems[j];
+        matrixQueryScores[j] = idToMaxScore[item.id] !== undefined ? idToMaxScore[item.id] : 0.0;
+      }
+
+      drawMatrixCanvas();
+
+      matrixHoveredCell = { row: N, col: 0 };
+      updateMatrixInspector(N, 0);
+      drawMatrixCanvas();
+
+    } catch (e) {
+      console.error('Live query error:', e);
+      alert('Live query scan failed: ' + e.message);
+    } finally {
+      elBtnMatrixQueryScan.disabled = false;
+      elBtnMatrixQueryScan.textContent = '🔍 Scan & Project onto Matrix';
+    }
   }
 
   // Start app on DOMContentLoaded
