@@ -353,18 +353,17 @@
               Our polyfill adheres strictly to the common pattern established by Built-in AI APIs:
               <code>availability() -> create() / retrieve() -> execute -> close()</code>.
             </p>
-            <div class="code-block">
-              // 1. Check API availability
-              if (!VectorStore || (await VectorStore.availability()) === "unavailable") {
-              console.error("Vector Store API is not available.");
-              }
+            <pre class="code-block"><code>// 1. Check API availability
+if (!VectorStore || (await VectorStore.availability()) === "unavailable") {
+  console.error("Vector Store API is not available.");
+}
 
-              // 2. Create store with chunking strategy & distance metric
-              const vectorStore = await VectorStore.create({
-              id: "my-app-notes",
-              chunkingStrategy: { maxChunkSizeTokens: 400, chunkOverlapTokens: 50 },
-              distance_type: 'Cosine'
-              });</div>
+// 2. Create store with chunking strategy & distance metric
+const vectorStore = await VectorStore.create({
+  id: "my-app-notes",
+  chunkingStrategy: { maxChunkSizeTokens: 400, chunkOverlapTokens: 50 },
+  distance_type: 'Cosine'
+});</code></pre>
           </div>
 
           <div>

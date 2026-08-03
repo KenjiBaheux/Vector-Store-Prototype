@@ -620,4 +620,5 @@ body {
   color: var(--accent-cyan);
   margin: 1rem 0;
   line-height: 1.5;
+  white-space: pre-wrap;
 }
