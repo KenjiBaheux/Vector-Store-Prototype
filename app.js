@@ -88,12 +88,18 @@
   const elInspectorDocBText = document.getElementById('inspector-doc-b-text');
   const elInputMatrixQuery = document.getElementById('input-matrix-query');
   const elBtnMatrixQueryScan = document.getElementById('btn-matrix-query-scan');
+  const elRelationshipInspectorCard = document.getElementById('relationship-inspector-card');
+  const elInspectorCardSubtitle = document.getElementById('inspector-card-subtitle');
 
   // Similarity Matrix State
   let matrixItems = [];
   let matrixScores = [];
   let matrixQueryScores = null;
   let matrixHoveredCell = null;
+  let matrixActiveAxisHighlight = null;
+  let matrixInspectedCell = null;
+  let matrixInspectorHovered = false;
+  let matrixPinnedCell = null;
 
   // ---------------------------------------------------------------------------
   // Helper: Show setup instructions alert/banner
@@ -203,6 +209,12 @@
       }
       activeStore = null;
       activeStoreId = null;
+      matrixPinnedCell = null;
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.remove('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = 'Hover over a grid cell to compare texts';
+        elInspectorCardSubtitle.classList.remove('pinned');
+      }
       await initApp();
     });
 
@@ -379,6 +391,7 @@
     if (elCanvasSimilarityMatrix) {
       elCanvasSimilarityMatrix.addEventListener('mousemove', handleMatrixCanvasMouseMove);
       elCanvasSimilarityMatrix.addEventListener('mouseleave', handleMatrixCanvasMouseLeave);
+      elCanvasSimilarityMatrix.addEventListener('click', handleMatrixCanvasClick);
     }
     if (elBtnMatrixQueryScan) {
       elBtnMatrixQueryScan.addEventListener('click', scanMatrixQuery);
@@ -388,6 +401,17 @@
         if (e.key === 'Enter') {
           scanMatrixQuery();
         }
+      });
+    }
+
+    if (elMatrixInspectorContent) {
+      elMatrixInspectorContent.addEventListener('mouseenter', () => {
+        matrixInspectorHovered = true;
+        drawMatrixCanvas();
+      });
+      elMatrixInspectorContent.addEventListener('mouseleave', () => {
+        matrixInspectorHovered = false;
+        drawMatrixCanvas();
       });
     }
   }
@@ -984,6 +1008,7 @@
       const N = items.length;
       matrixScores = Array.from({ length: N }, () => Array(N).fill(0));
       matrixQueryScores = null; // reset live query scanner
+      matrixPinnedCell = null; // reset pinned cell
       
       // Update items list on the left
       renderMatrixItemsList(items);
@@ -1041,6 +1066,11 @@
       // Update inspector state
       elMatrixInspectorEmpty.style.display = 'block';
       elMatrixInspectorContent.style.display = 'none';
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.remove('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = 'Hover over a grid cell to compare texts';
+        elInspectorCardSubtitle.classList.remove('pinned');
+      }
 
     } catch (err) {
       console.error('Error generating matrix:', err);
@@ -1056,6 +1086,15 @@
     items.forEach((item, index) => {
       const card = document.createElement('div');
       card.className = 'matrix-item-card';
+
+      card.addEventListener('mouseenter', () => {
+        matrixActiveAxisHighlight = index;
+        drawMatrixCanvas();
+      });
+      card.addEventListener('mouseleave', () => {
+        matrixActiveAxisHighlight = null;
+        drawMatrixCanvas();
+      });
 
       const badge = document.createElement('span');
       badge.className = 'matrix-axis-badge';
@@ -1141,18 +1180,25 @@
         const ry = offsetY + r * cellH;
         ctx.fillRect(rx + 1, ry + 1, cellW - 2, cellH - 2);
 
-        // Highlight active hovered cell crosshair
-        if (matrixHoveredCell && (matrixHoveredCell.row === r || matrixHoveredCell.col === c)) {
-          ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)'; // Cyan glow for crosshair
-          ctx.lineWidth = 1;
-          ctx.strokeRect(rx, ry, cellW, cellH);
-        }
-        
-        // Solid highlight for the exact hovered cell
+        // 1. Solid highlight for the exact hovered cell on canvas (salient pink)
         if (matrixHoveredCell && matrixHoveredCell.row === r && matrixHoveredCell.col === c) {
-          ctx.strokeStyle = 'var(--accent-cyan)';
+          ctx.strokeStyle = 'hsl(328, 100%, 65%)';
           ctx.lineWidth = 2;
           ctx.strokeRect(rx, ry, cellW, cellH);
+        }
+
+        // 2. Solid highlight for the inspected cell on Relationship Inspector hover
+        if (matrixInspectorHovered && matrixInspectedCell && matrixInspectedCell.row === r && matrixInspectedCell.col === c) {
+          ctx.strokeStyle = 'hsl(265, 85%, 65%)'; // Bold Purple border for inspected cell
+          ctx.lineWidth = 2.5;
+          ctx.strokeRect(rx, ry, cellW, cellH);
+        }
+
+        // 3. Solid highlight for the pinned cell
+        if (matrixPinnedCell && matrixPinnedCell.row === r && matrixPinnedCell.col === c) {
+          ctx.strokeStyle = 'hsl(38, 95%, 55%)'; // Gold/Amber border for pinned cell
+          ctx.lineWidth = 3;
+          ctx.strokeRect(rx + 1, ry + 1, cellW - 2, cellH - 2);
         }
 
         // Special border for the live query row
@@ -1165,32 +1211,57 @@
     }
 
     // Draw Column Labels (on top X axis)
-    ctx.fillStyle = 'var(--text-secondary)';
-    ctx.font = 'bold 10px Fira Code, monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     for (let c = 0; c < cols; c++) {
       const rx = offsetX + c * cellW + cellW / 2;
+      if (matrixActiveAxisHighlight !== null && matrixActiveAxisHighlight === c) {
+        ctx.fillStyle = 'hsla(210, 100%, 60%, 0.2)';
+        ctx.beginPath();
+        ctx.arc(rx, offsetY - 13, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'hsl(210, 100%, 60%)';
+        ctx.font = 'bold 11px Fira Code, monospace';
+      } else {
+        ctx.fillStyle = '#9ca3af';
+        ctx.font = 'bold 10px Fira Code, monospace';
+      }
       ctx.fillText(c.toString(), rx, offsetY - 8);
     }
 
     // Draw Row Labels (on left Y axis)
-    ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (let r = 0; r < rows; r++) {
       const ry = offsetY + r * cellH + cellH / 2;
       if (r < N) {
-        ctx.fillStyle = 'var(--text-secondary)';
-        ctx.fillText(r.toString(), offsetX - 10, ry);
+        if (matrixActiveAxisHighlight !== null && matrixActiveAxisHighlight === r) {
+          ctx.fillStyle = 'hsla(210, 100%, 60%, 0.2)';
+          ctx.beginPath();
+          ctx.arc(offsetX - 15, ry, 10, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = 'hsl(210, 100%, 60%)';
+          ctx.font = 'bold 11px Fira Code, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(r.toString(), offsetX - 15, ry);
+        } else {
+          ctx.fillStyle = '#9ca3af';
+          ctx.font = 'bold 10px Fira Code, monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText(r.toString(), offsetX - 10, ry);
+        }
       } else {
-        ctx.fillStyle = 'var(--accent-purple)';
+        ctx.fillStyle = 'hsl(265, 85%, 65%)';
+        ctx.font = 'bold 10px Fira Code, monospace';
+        ctx.textAlign = 'right';
         ctx.fillText('Q', offsetX - 10, ry);
       }
     }
 
     // Draw borders / dividing line for query row
     if (hasQuery) {
-      ctx.strokeStyle = 'var(--accent-purple)';
+      ctx.strokeStyle = 'hsl(265, 85%, 65%)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(offsetX, offsetY + N * cellH);
@@ -1274,7 +1345,9 @@
         if (!matrixHoveredCell || matrixHoveredCell.row !== row || matrixHoveredCell.col !== col) {
           matrixHoveredCell = { row, col };
           drawMatrixCanvas();
-          updateMatrixInspector(row, col);
+          if (!matrixPinnedCell) {
+            updateMatrixInspector(row, col);
+          }
         }
       }
     } else {
@@ -1291,6 +1364,49 @@
       matrixHoveredCell = null;
       drawMatrixCanvas();
       hideMatrixTooltip();
+    }
+  }
+
+  function handleMatrixCanvasClick(e) {
+    const canvas = elCanvasSimilarityMatrix;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const canvasX = e.clientX - canvasRect.left;
+    const canvasY = e.clientY - canvasRect.top;
+    
+    const x = (canvasX / canvasRect.width) * canvas.width;
+    const y = (canvasY / canvasRect.height) * canvas.height;
+
+    const N = matrixItems.length;
+    if (N === 0) return;
+
+    const hasQuery = matrixQueryScores !== null;
+    const cols = N;
+    const rows = hasQuery ? N + 1 : N;
+
+    const offsetX = 45;
+    const offsetY = 45;
+    const gridWidth = canvas.width - offsetX - 15;
+    const gridHeight = canvas.height - offsetY - 15;
+
+    if (x >= offsetX && x < offsetX + gridWidth && y >= offsetY && y < offsetY + gridHeight) {
+      const cellW = gridWidth / cols;
+      const cellH = gridHeight / rows;
+      
+      const col = Math.floor((x - offsetX) / cellW);
+      const row = Math.floor((y - offsetY) / cellH);
+
+      if (col >= 0 && col < cols && row >= 0 && row < rows) {
+        if (matrixPinnedCell && matrixPinnedCell.row === row && matrixPinnedCell.col === col) {
+          matrixPinnedCell = null;
+          updateMatrixInspector(row, col);
+        } else {
+          matrixPinnedCell = { row, col };
+          updateMatrixInspector(row, col);
+        }
+        drawMatrixCanvas();
+      }
     }
   }
 
@@ -1320,6 +1436,7 @@
   }
 
   function updateMatrixInspector(row, col) {
+    matrixInspectedCell = { row, col };
     const N = matrixItems.length;
     const itemB = matrixItems[col];
     let itemA = null;
@@ -1363,6 +1480,21 @@
     elInspectorDocBId.textContent = `Document B (Col ${col}): ${itemB.id}`;
     elInspectorDocBText.textContent = itemB.content;
 
+    const isPinned = matrixPinnedCell && matrixPinnedCell.row === row && matrixPinnedCell.col === col;
+    if (isPinned) {
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.add('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = '📌 Pinned Comparison (Click cell again to unpin)';
+        elInspectorCardSubtitle.classList.add('pinned');
+      }
+    } else {
+      if (elRelationshipInspectorCard) elRelationshipInspectorCard.classList.remove('pinned');
+      if (elInspectorCardSubtitle) {
+        elInspectorCardSubtitle.textContent = 'Hover over a grid cell to compare texts';
+        elInspectorCardSubtitle.classList.remove('pinned');
+      }
+    }
+
     elMatrixInspectorEmpty.style.display = 'none';
     elMatrixInspectorContent.style.display = 'flex';
   }
@@ -1379,6 +1511,8 @@
       alert('Please generate the matrix first.');
       return;
     }
+
+    matrixPinnedCell = null;
 
     elBtnMatrixQueryScan.disabled = true;
     elBtnMatrixQueryScan.textContent = 'Embedding & Scanning...';

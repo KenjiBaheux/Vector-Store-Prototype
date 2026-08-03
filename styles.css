@@ -28,6 +28,7 @@
   --accent-green: hsl(150, 80%, 50%);
   --accent-amber: hsl(38, 95%, 55%);
   --accent-red: hsl(0, 85%, 60%);
+  --accent-pink: hsl(328, 100%, 65%);
 
   --gradient-primary: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 100%);
   --gradient-secondary: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
@@ -781,4 +782,12 @@ dialog.edit-dialog[open] {
   font-weight: 700;
   flex-shrink: 0;
 }
+#relationship-inspector-card.pinned {
+  border-color: var(--accent-amber);
+  box-shadow: 0 0 16px hsla(38, 95%, 55%, 0.2);
+}
 
+#inspector-card-subtitle.pinned {
+  color: var(--accent-amber);
+  font-weight: 500;
+}
