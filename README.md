@@ -1,4 +1,4 @@
-# Vector Store API Polyfill
+# Vector Store API Prototype
 
 An end-to-end, zero-dependency JavaScript polyfill for the proposed **Vector Store API**, built on top of the experimental on-device **[Semantic Embedder API](./vector-store.js#L30)** (`EmbeddingGemma-300m`).
 
@@ -13,7 +13,7 @@ This library enables web applications to perform privacy-preserving, low-latency
   - Automatically passes `{ taskType: "retrieval-document" }` during [vectorStore.insert()](./vector-store.js#L265) and [updateContent()](./vector-store.js#L377) so document embeddings are optimized for indexing.
   - Automatically passes `{ taskType: "retrieval-query" }` during [vectorStore.findNearest()](./vector-store.js#L327) so queries are optimized for similarity search.
 - **Intelligent Text Chunking**: Automatically chunks input strings based on configurable `maxChunkSizeTokens` and `chunkOverlapTokens`, respecting sentence and word boundaries.
-- **Persistent IndexedDB Backing**: Stores database metadata, original items, and embedding vectors (`Float32Array`) in an IndexedDB database (`VectorStorePolyfillDB`), enabling [VectorStore.list()](./vector-store.js#L484) and [VectorStore.retrieve(id)](./vector-store.js#L503) across browser sessions without re-ingesting documents.
+- **Persistent IndexedDB Backing**: Stores database metadata, original items, and embedding vectors (`Float32Array`) in an IndexedDB database (`VectorStorePrototypeDB`), enabling [VectorStore.list()](./vector-store.js#L484) and [VectorStore.retrieve(id)](./vector-store.js#L503) across browser sessions without re-ingesting documents.
 - **Multiple Similarity Metrics**: Supports `Cosine` (default), `DotProduct`, and `Euclidean` similarity calculations.
 - **Strict Native Engine Detection**: Detects whether the native `SemanticEmbedder` is enabled and available on desktop platforms, providing clear actionable instructions when the experimental flag needs to be enabled.
 
@@ -33,7 +33,7 @@ The API is currently supported only on desktops (**Linux, Mac and Windows**).
 
 ## How to Use the API
 
-### 1. Including the Polyfill
+### 1. Including the Prototype
 
 Since the library has zero dependencies, simply include [vector-store.js](./vector-store.js) via `<script>` tag or import it as an ES module:
 
