@@ -1,5 +1,5 @@
 /**
- * Vector Store API Polyfill
+ * Vector Store API Prototype
  * Built on top of the experimental Semantic Embedder API (EmbeddingGemma-300m).
  *
  * Implements:
@@ -12,7 +12,7 @@
 (function (global) {
   'use strict';
 
-  const DB_NAME = 'VectorStorePolyfillDB';
+  const DB_NAME = 'VectorStorePrototypeDB';
   const DB_VERSION = 1;
 
   // ---------------------------------------------------------------------------
@@ -639,7 +639,7 @@
         embedder = await global.SemanticEmbedder.create({
           monitor: config.monitor
         });
-        console.info('[VectorStore Polyfill] Using Native SemanticEmbedder (embeddinggemma-300m).');
+        console.info('[VectorStore Prototype] Using Native SemanticEmbedder (embeddinggemma-300m).');
       } catch (err) {
         const error = new Error('Native SemanticEmbedder.create() failed: ' + err.message);
         error.code = 'ERR_SEMANTIC_EMBEDDER_UNAVAILABLE';
