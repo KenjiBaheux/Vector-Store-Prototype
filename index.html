@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vector Store API Polyfill | Semantic Embedder Showcase</title>
+  <title>Vector Store API Prototype | Semantic Embedder Showcase</title>
   <meta name="description"
     content="An end-to-end interactive polyfill and showcase for the proposed Vector Store API, built on top of an experimental on-device Semantic Embedder API (EmbeddingGemma-300m)." />
   <!-- Google Fonts for Modern Typography -->
@@ -22,7 +22,7 @@
     <div class="brand-container">
       <div class="brand-icon">VS</div>
       <div>
-        <h1 class="brand-title">Vector Store API Polyfill</h1>
+        <h1 class="brand-title">Vector Store API Prototype</h1>
         <div class="brand-subtitle">Built on the experimental Semantic Embedder API</div>
       </div>
     </div>
@@ -489,7 +489,7 @@
       <div class="docs-container card">
         <div class="card-header">
           <div>
-            <h2 class="card-title">Vector Store API Polyfill Architecture</h2>
+            <h2 class="card-title">Vector Store API Prototype Architecture</h2>
             <p class="card-subtitle">Specification Compliance & Experimental Integration</p>
           </div>
         </div>
@@ -538,7 +538,7 @@ const vectorStore = await VectorStore.create({
             <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">3. Persistent Indexing in IndexedDB</h3>
             <p>
               All stores, original items, and embedding vectors (<code>Float32Array</code>) are stored inside an
-              IndexedDB database named <code>VectorStorePolyfillDB</code>.
+              IndexedDB database named <code>VectorStorePrototypeDB</code>.
               This allows developers to call <code>VectorStore.list()</code> to enumerate databases across browser
               sessions and call <code>VectorStore.retrieve(id)</code> to open a store without re-ingesting documents.
             </p>
@@ -572,7 +572,7 @@ const vectorStore = await VectorStore.create({
     </div>
   </dialog>
 
-  <!-- Load Polyfill & App Logic -->
+  <!-- Load Prototype & App Logic -->
   <script src="vector-store.js"></script>
   <script src="app.js"></script>
 </body>
