@@ -1,5 +1,5 @@
 /**
- * Vector Store API Polyfill - Interactive Showcase Application
+ * Vector Store API Prototype - Interactive Showcase Application
  * Zero Dependencies | Vanilla JavaScript
  * Enforces strict DOM manipulation security (no innerHTML, textContent / createElement only)
  */
